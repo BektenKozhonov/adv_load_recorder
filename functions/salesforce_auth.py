@@ -69,7 +69,7 @@ def initialize_salesforce_session():
     """
     global sf_rest_session, sf_bulk_session
     if not sf_rest_session or not sf_bulk_session:
-        sessions = authenticate_salesforce(api_type='both')
+        sessions = authenticate_salesforce(api_type='sf')
         if isinstance(sessions, tuple):
             sf_rest_session, sf_bulk_session = sessions
             logger.info("Salesforce sessions initialized for both REST and Bulk API.")
@@ -96,7 +96,7 @@ def download_and_save_file(content_document_id, save_folder):
             raise Exception('Salesforce REST session not initialized')
 
         # Формируем URL для загрузки файла по ContentDocumentId
-        download_url = f"https://{sf_rest_session.sf_instance}/services/data/vXX.X/sobjects/ContentDocument/{content_document_id}/VersionData"
+        download_url = f"https://{sf_rest_session.sf_instance}/services/data/v61.0/sobjects/ContentDocument/{content_document_id}/VersionData"
         
         # Отправляем запрос на загрузку файла
         headers = {'Authorization': f'Bearer {sf_rest_session.session_id}'}
