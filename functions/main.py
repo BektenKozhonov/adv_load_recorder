@@ -26,6 +26,7 @@ def receive_file():
     global sf_rest_session, sf_bulk_session
     if not sf_rest_session or not sf_bulk_session:
         sf_rest_session, sf_bulk_session = initialize_salesforce_session()
+        print(sf_bulk_session, sf_rest_session)
     if not sf_rest_session or not sf_bulk_session:
         return jsonify({'error': 'Failed to initialize Salesforce session'}), 500
 
