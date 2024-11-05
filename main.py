@@ -1,8 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from utils.salesforce_auth import initialize_salesforce_session, download_and_save_file
-from utils.load_broker_driver_maps import get_broker_map, get_driver_map
-from utils.salesforce_record import process_load_records
+from utils.salesforce_record import process_file
 import pandas as pd
 
 app = Flask(__name__)
@@ -41,17 +40,6 @@ def receive_file():
     return jsonify({'message': 'File processed successfully'}), 200
 
 
-def process_file(file_path):
-    """Чтение и обработка загруженного файла .xlsx."""
-    df = pd.read_excel(file_path)
-    customers = df['Customer'].tolist()
-    drivers = df['Driver'].tolist()
-
-    broker_map = get_broker_map(customers, sf_rest_session)
-    driver_map = get_driver_map(drivers, sf_rest_session)
-
-    # Передача DataFrame, карты брокеров, карты водителей и сессии Bulk API в функцию обработки записей
-    process_load_records(df, broker_map, driver_map, sf_bulk_session)
 
 
 if __name__ == '__main__':
