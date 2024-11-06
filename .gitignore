@@ -73,3 +73,5 @@ node_modules/
 .sfdx
 venv
 __pycache__
+
+tms-file-uploader
