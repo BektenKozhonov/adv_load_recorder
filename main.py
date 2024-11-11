@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from utils.load_data import SalesforceAuthentication, Job
+from utils.load_data import SalesforceAuthentication, LoadRecord, PickupDelivery
 import logging
 import os
 
@@ -34,14 +34,15 @@ def receive_file():
             return jsonify({'error': 'Failed to initialize Salesforce session'}), 500
 
         # Создаем экземпляр Job для загрузки и обработки файла
-        job = Job(content_document_id, app.config['UPLOAD_FOLDER'])
-        
+        load_rec = LoadRecord(content_document_id, app.config['UPLOAD_FOLDER'])
+        pick_dvr_rec = PickupDelivery(content_document_id, app.config['UPLOAD_FOLDER'])
         # Проверка, удалось ли загрузить файл
-        if not job.file_path:
+        if not all([load_rec.file_path, pick_dvr_rec.file_path]):
             return jsonify({'error': 'Failed to download and save file'}), 500
 
         # Обработка загруженного файла
-        job.process_file()
+        load_rec.process_file()
+        pick_dvr_rec.process_file()
         
     except Exception as e:
         logger.error(f"Error processing file: {e}")
