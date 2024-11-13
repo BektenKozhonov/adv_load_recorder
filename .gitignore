@@ -76,3 +76,5 @@ __pycache__
 
 tms-file-uploader
 
+utils\trash.py
+
