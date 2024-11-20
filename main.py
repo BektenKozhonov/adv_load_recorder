@@ -1,7 +1,7 @@
 import logging
 import os
 import glob
-from utils.job import PickupDelivery, LoadRecord
+from utils.job import PickupDelivery, LoadRecord, Trip
 from utils.salesforce_interfrnc import SalesforceAuthentication, TripSetter
 
 # Настройка логирования
@@ -35,17 +35,16 @@ def process_files():
         for file in excel_files:
             try:
                 # Create Trip instance (inherits LoadRecord and PickupDelivery functionality)
-                # load_instance = LoadRecord(file)
+                load_instance = LoadRecord(file)
                 pck_del_instance = PickupDelivery(file)
+                
 
                 # Process LoadRecord, PickupDelivery, and Trip data
-                # load_instance.process_file()
-                # pck_del_instance.process_file()
+                load_instance.process_file()
+                pck_del_instance.picup_dlvr_loader()
                 
-                # Download and save supportive files if required
-                load_numbers = pck_del_instance.df['load'].tolist()
-                trip_setter = TripSetter(SUPPORTIVE_FOLDER)
-                trip_setter.download_and_save_file(load_numbers)
+                trip_instance = Trip(file, SUPPORTIVE_FOLDER)
+                trip_instance.process_trip_records()
 
                 logger.info(f"File {file} processed successfully")
             except Exception as e:

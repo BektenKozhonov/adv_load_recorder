@@ -155,7 +155,21 @@ class TripSetter(SalesforceAuthentication):
         self.save_folder = save_folder
         self.file_path = None
 
-    def download_and_save_file(self, load_numbers: List[str]) -> Optional[str]:
+    def get_data_csv(self, result, num):            
+    # Check if records are available
+        if not result['records']:
+            logger.warning("No records found for the provided load numbers")
+            return None
+
+        # Save data to CSV
+        df = pd.DataFrame(result['records']).drop(columns='attributes')
+        self.file_path = os.path.join(self.save_folder, f'salesforce_data{num}.csv')
+        df.to_csv(self.file_path, index=False)
+        logger.info(f"Data successfully saved to {self.file_path}")
+
+        return self.file_path  # Return path of the saved file
+
+    def making_trip_sql_request(self, load_numbers: List[str]) -> Optional[str]: # set_tripsql_request()
         """Downloads a CSV file with Trip pickup and delivery ID if it exists."""
         try:
             # Create the save folder if it doesn't exist
@@ -172,21 +186,37 @@ class TripSetter(SalesforceAuthentication):
                 FROM Load__c 
                 where Load_Number__c in ({load_numbers_str})
                 """
-            result = self.sf_rest_session.query(query)
-
-            # Check if records are available
-            if not result['records']:
-                logger.warning("No records found for the provided load numbers")
-                return None
-
-            # Save data to CSV
-            df = pd.DataFrame(result['records']).drop(columns='attributes')
-            self.file_path = os.path.join(self.save_folder, 'salesforce_data.csv')
-            df.to_csv(self.file_path, index=False)
-            logger.info(f"Data successfully saved to {self.file_path}")
-
-            return self.file_path  # Return path of the saved file
+            self.result = self.sf_rest_session.query(query)
+            return self.get_data_csv(self.result, 0)
 
         except Exception as e:
             logger.error(f"Error occurred during file download: {str(e)}")
             return None
+        
+    def making_driver_sql_request(self, load_numbers: List[str]) -> Optional[str]: # set_trucksql_request()
+        """Downloads a CSV file with Trip pickup and delivery ID if it exists."""
+        try:
+            # Create the save folder if it doesn't exist
+            os.makedirs(self.save_folder, exist_ok=True)
+            
+            # Ensure Salesforce session is initialized
+            if not self.sf_rest_session:
+                raise Exception('Salesforce REST session not initialized')
+
+            # Prepare and execute Salesforce query
+            load_numbers_str = ','.join([f"'{num}'" for num in load_numbers])
+            query = f"""
+                SELECT Id, DRIVER_ID__c, FirstName, LastName, 
+                (SELECT Id, TYPE__c, END_DATE__c, UNIT__c FROM Vehicle_History__r WHERE END_DATE__c = null) 
+                FROM Account WHERE RecordType.DeveloperName = 'DriverAccount'
+                AND DRIVER_ID__c IN ({load_numbers_str})
+                """
+            self.result = self.sf_rest_session.query(query)
+            return self.get_data_csv(self.result, 1)
+
+        except Exception as e:
+            logger.error(f"Error occurred during file download: {str(e)}")
+            return None
+    
+
+    
