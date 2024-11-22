@@ -287,15 +287,16 @@ class Trip(TripDataset, BulkLoadProcessor):
         for index, row in self.df.iterrows():
             try:
                 load_data = {
-                                'AccountId__c': row['driver_id'],
-                                'LOAD__c': row['load'],
+                                'AccountId__r.DRIVER_ID__c': row['driver_id'],
+                                'LOAD__r.LOAD_NUMBER__c': row['load'],
                                 'DEL__c': row['delivery_id'],
                                 'DRIVER_PAY__c': float(row['linehaul_total']),
                                 'DV__c': row['vehicle_id'], # поменяем sql из данных будем брат
                                 'EMPTY_MI__c': row['empty_miles'],
                                 'LOADED_MI__c': row['loaded_miles'],
                                 'PICK__c': row['pickup_id'],
-                                'PICKUP__c': row['pu_info'],
+                                'PICKUP__c': row['pu_info'], 
+                                'DELIVERY__c': row['del_info'],
                                 'TRAILER__c': row['unit_id'], # поменяем sql из данных будем брать
                                 'TRIP_STATUS__c': row['status']
                             }
