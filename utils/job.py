@@ -4,6 +4,8 @@ import numpy as np
 import os
 from utils.salesforce_interfrnc import SalesforceAuthentication, BulkLoadProcessor, TripSetter
 import re
+from collections import OrderedDict
+import ast
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -44,7 +46,7 @@ class DataSet:
             'actions'
         ]
         
-        self.df = self.df.loc[2001:2100, [
+        self.df = self.df.loc[4001:4100, [
             'customer',
             'status',
             'pu_info',
@@ -84,22 +86,49 @@ class TripDataset(DataSet, TripSetter):
     
     def extract_pickup_and_delivery_ids(self, data):
         """
-        Извлекает идентификаторы Pickup и Delivery из строки данных.
+        Extracts Pickup and Delivery IDs from the given data.
+        Handles OrderedDict input formats.
 
-        :param data: строка, содержащая данные в формате OrderedDict.
-        :return: словарь с pickup_ids и delivery_ids.
+        :param data: data in dictionary or OrderedDict format.
+        :return: dictionary with pickup_ids and delivery_ids.
         """
-        # Регулярное выражение для поиска Pickup и Delivery с их ID
-        matches = re.findall(r"'TYPE__c': 'Pickup'.*?'Id': '(\w+)'|"
-                            r"'TYPE__c': 'Delivery'.*?'Id': '(\w+)'", data)
+        # String representation of OrderedDict
+        ordered_dict_string = data
+        ordered_dict_string = str(ordered_dict_string)
+        # Replace 'OrderedDict' with 'dict' to make it evaluable
+        dict_string = ordered_dict_string.replace("OrderedDict", "")
 
-        # Формирование словаря с результатами
-        self.result = {"pickup_ids": [], "delivery_ids": []}
-        for pickup_id, delivery_id in matches:
-            if pickup_id:
-                self.result["pickup_ids"].append(pickup_id)
-            if delivery_id:
-                self.result["delivery_ids"].append(delivery_id)
+        # Convert the string to a dictionary
+        parsed_dict = ast.literal_eval(dict_string)
+
+        # Convert back to OrderedDict if needed
+        ordered_dict = OrderedDict(parsed_dict)
+        # Ensure data is a dictionary-like object
+        if not isinstance(ordered_dict, (dict, OrderedDict)):
+            raise ValueError("Input data must be a dictionary or OrderedDict")
+
+        # Initialize result lists
+        pickup_ids = []
+        delivery_ids = []
+
+        # Extract records
+        records = ordered_dict.get('records', [])
+
+        for record in records:
+            # Check the TYPE__c field
+            record_type = record.get('TYPE__c')
+            record_id = record.get('Id')
+
+            if record_type == 'Pickup':
+                pickup_ids.append(record_id)
+            elif record_type == 'Delivery':
+                delivery_ids.append(record_id)
+
+        # Combine results into a dictionary
+        self.result = {
+            "pickup_ids": pickup_ids,
+            "delivery_ids": delivery_ids
+        }
 
         return self.result
     

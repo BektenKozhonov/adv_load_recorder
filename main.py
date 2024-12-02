@@ -2,7 +2,7 @@ import logging
 import os
 import glob
 from utils.job import PickupDelivery, LoadRecord, Trip
-from utils.salesforce_interfrnc import SalesforceAuthentication, TripSetter
+from utils.salesforce_interfrnc import SalesforceAuthentication
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,7 +29,7 @@ def process_files():
         excel_files = glob.glob(os.path.join(UPLOAD_FOLDER, "*.xlsx"))
         if not excel_files:
             logger.info("No Excel files found for processing.")
-            return
+            
 
         # Process each file
         for file in excel_files:
