@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 import os
-from utils.salesforce_interfrnc import SalesforceAuthentication, BulkLoadProcessor, TripSetter
+from utils.salesforce_interfrnc import SalesforceAuthentication, BulkLoadProcessor, TripSetter   #, ObjectMapper
 import re
 from collections import OrderedDict
 import ast
@@ -12,64 +12,71 @@ logger = logging.getLogger(__name__)
 
 
 class DataSet:
-    def __init__(self, filepath):
-        self.df = pd.read_excel(filepath)
-        self.process_df()
+    def __init__(self, filepath_kgline: str, filepath_tutash: str):
+        self.dfkg = pd.read_excel(filepath)
+        self.dftutash = pd.read_excel(filepath_tutash)
+        process_df()
+    
+    def set_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        rename(columns={
+                    "Company Load#": "company_load_number",
+                    "Contract/Spot": "contract_or_spot",
+                    "Fleet manager": "fleet_manager",
+                    "Sales Rep": "sales_rep",
+                    "Customer": "customer",
+                    "Position": "position",
+                    "Status": "status",
+                    "# of Picks": "number_of_picks",
+                    "PU Info": "pu_info",
+                    "PU State Code": "pu_state_code",
+                    "PU Time": "pu_time",
+                    "Driver PU Time": "driver_pickup_time",
+                    "# of Drops": "number_of_drops",
+                    "DEL Info": "del_info",
+                    "DEL State Code": "del_state_code",
+                    "DEL Time": "del_time",
+                    "Driver DEL Time": "driver_delivery_time",
+                    "Driver": "driver",
+                    "Linehaul": "linehaul",
+                    "Fuel Surcharge": "fuel_surcharge",
+                    "Linehaul Total": "linehaul_total",
+                    "Empty Miles": "empty_miles",
+                    "Loaded Miles": "loaded_miles",
+                    "$ per mile (loaded)": "dollar_per_mile_loaded",
+                    "$ per mile (total)": "dollar_per_mile_total",
+                    "Actions": "actions",
+                    "Lumper": "lumper"
+                }, inplace=True)
+        
+        df = df.loc[:, ['customer',
+                  'status',
+                  'pu_info',
+                  'pu_state_code',
+                  'pu_time',
+                  'del_info',
+                  'del_state_code',
+                  'del_time',
+                  'driver',
+                  'linehaul_total',
+                  'lumper',
+                  'empty_miles',
+                  'loaded_miles']]
+        
+        df['load'] = self.df.customer.map(lambda i: i.split(' ')[-1])
+        df['customer'] = self.df.customer.apply(lambda i: " ".join(i.split(' ')[:-1]))
+        df['pu_city'] = self.df.pu_info.apply(lambda i: i.split(', ')[0])
+        df['del_city'] = self.df.del_info.apply(lambda i: i.split(', ')[0])
+        df['driver_id'] = self.df.driver.apply(lambda i: i.split(' - ')[0] if pd.notna(i) else '')
+        df['driver'] = self.df.driver.apply(lambda i: i.split(' - ')[1].replace(' (100.0%)', '') if pd.notna(i) else '')
+        df['driver'] = self.df.driver.fillna('')
+        df['driver_id'] = self.df.driver_id.fillna('')
+        return df
     
     def process_df(self):
-        self.df.columns = [
-            'company_load_number',
-            'contract_spot',
-            'sales_rep',
-            'customer',
-            'position',
-            'status',
-            'number_of_picks',
-            'pu_info',
-            'pu_state_code',
-            'pu_time',
-            'driver_pu_time',
-            'number_of_drops',
-            'del_info',
-            'del_state_code',
-            'del_time',
-            'driver_del_time',
-            'driver',
-            'linehaul',
-            'fuel_surcharge',
-            'lumper',
-            'linehaul_total',
-            'empty_miles',
-            'loaded_miles',
-            'dollar_per_mile_loaded',
-            'dollar_per_mile_total',
-            'actions'
-        ]
-        
-        self.df = self.df.loc[4001:4100, [
-            'customer',
-            'status',
-            'pu_info',
-            'pu_state_code',
-            'pu_time',
-            'del_info',
-            'del_state_code',
-            'del_time',
-            'driver',
-            'linehaul_total',
-            'lumper',
-            'empty_miles',
-            'loaded_miles'
-        ]]
-        
-        self.df['load'] = self.df.customer.map(lambda i: i.split(' ')[-1])
-        self.df['customer'] = self.df.customer.apply(lambda i: " ".join(i.split(' ')[:-1]))
-        self.df['pu_city'] = self.df.pu_info.apply(lambda i: i.split(', ')[0])
-        self.df['del_city'] = self.df.del_info.apply(lambda i: i.split(', ')[0])
-        self.df['driver_id'] = self.df.driver.apply(lambda i: i.split(' - ')[0] if pd.notna(i) else '')
-        self.df['driver'] = self.df.driver.apply(lambda i: i.split(' - ')[1].replace(' (100.0%)', '') if pd.notna(i) else '')
-        self.df['driver'] = self.df.driver.fillna('')
-        self.df['driver_id'] = self.df.driver_id.fillna('')
+        self.dfkg = set_df(self.dfkg)
+        self.dftus = set_df(self.dftus)
+
+    
 
 
 class TripDataset(DataSet, TripSetter):
@@ -203,12 +210,14 @@ class LoadRecord(DataSet, BulkLoadProcessor, SalesforceAuthentication):
 
 
     def process_load_records(self):
+        #mapper = ObjectMapper()
         """Обрабатывает строки DataFrame и добавляет их в bulk загрузку."""
         for index, row in self.df.iterrows():
             try:
                 load_data = {
                                 'Name': row['load'],
                                 'Load_Number__c': row['load'],
+                                #'Broker__c':'',
                                 'LINEHAUL_RATE__c': float(row['linehaul_total']),
                                 'EQUIPMENT_TYPE__c': 'DRY VAN',
                                 'NOTES__c': row['driver'],

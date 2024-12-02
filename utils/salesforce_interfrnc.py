@@ -91,63 +91,59 @@ class ObjectMapper(SalesforceAuthentication):
     def __init__(self):
         super().__init__()
         self.broker_map = {}
+        # Настройка логирования
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        self.logger = logging.getLogger(__name__)
 
     def get_broker_map(self, broker_name: str) -> dict:
+        self.logger.info(f"Fetching broker map for broker: {broker_name}")
         
         broker = self.find_broker_by_name(broker_name)
         if not broker:
+            self.logger.warning(f"Broker '{broker_name}' not found, creating a new one.")
             broker = self.create_broker_in_account(broker_name)
 
+        self.logger.info(f"Broker map fetched for broker: {broker_name}")
         return self.broker_map
 
     def find_broker_by_name(self, name):
+        self.logger.info(f"Searching for broker with name: {name}")
         query = f"SELECT Id, Name FROM Account WHERE Name = '{name}'"
-        result = self.sf_rest_session.query(query)
-        return result['records'][0] if result['records'] else None
+        
+        try:
+            result = self.sf_rest_session.query(query)
+            if result['records']:
+                self.logger.info(f"Broker '{name}' found with ID: {result['records'][0]['Id']}")
+            else:
+                self.logger.warning(f"No broker found with name: {name}")
+            return result['records'][0] if result['records'] else None
+        except Exception as e:
+            self.logger.error(f"Error during broker search: {e}")
+            raise
 
     def create_broker_in_account(self, name):
-        if 'AMAZON' in name.upper():
-            account_data = {'Name': name, 'Type': 'Broker', 'AMAZON__c': True}
-
-        else:
-            account_data = {'Name': name, 'Type': 'Broker', 'STREETLOAD__c': True, 'PROOF_OF_DELIVERY__c': True, 'RATE_CONFIRMATION__c': True}, 
-        return self.sf_rest_session.Account.create(account_data)
-
-    def get_driver_map(self, driver_name: str):
-
-        if not driver_name:
-            return driver_name
-        driver_account = self.find_driver_by_name(driver_name)
-        if driver_account:
-            self.driver_map[driver_name] = {
-                'OWN_MC__c': driver_account.get('OWN_MC__c'),
-                'Id': driver_account.get('Id'),
-                'DRIVER_ID__c': driver_account.get('DRIVER_ID__c')
-            }
-        else:
-            logger.warning(f"No driver account found for name: '{driver_name}'")
-
-        return self.driver_map
-
-    def find_driver_by_name(self, driver_name):
+        self.logger.info(f"Creating a new broker account with name: {name}")
         try:
-            escaped_driver_name = driver_name.replace("'", "\\'").upper()
-            query = f"""
-            SELECT Id, Name, OWN_MC__c, DRIVER_ID__c
-            FROM Account
-            WHERE RecordType.DeveloperName = 'DriverAccount' AND Name = '{escaped_driver_name}'
-            """
-            result = self.sf_rest_session.query(query)
-            records = result['records']
-            if not records:
-                return None
-            elif len(records) > 1:
-                logger.warning(f"Multiple driver accounts found for name '{driver_name}'. Using the first one.")
-            return records[0]
+            if 'AMAZON' in name.upper():
+                account_data = {'Name': name, 
+                                'Type': 'Broker', 
+                                'AMAZON__c': True}
+                self.logger.debug(f"Account data for AMAZON: {account_data}")
+            else:
+                account_data = {'Name': name, 
+                                'Type': 'Broker', 
+                                'STREETLOAD__c': True, 
+                                'PROOF_OF_DELIVERY__c': True, 
+                                'RATE_CONFIRMATION__c': True}
+                self.logger.debug(f"Account data for other broker: {account_data}")
+                
+            account = self.sf_rest_session.Account.create(account_data)
+            self.logger.info(f"Broker '{name}' created with ID: {account['id']}")
+            return account
         except Exception as e:
-                logger.error(f"Error querying driver by name '{driver_name}': {e}")
-                return None
-        
+            self.logger.error(f"Error during broker creation: {e}")
+            raise
+
 
 class TripSetter(SalesforceAuthentication):
     def __init__(self, save_folder: str):
