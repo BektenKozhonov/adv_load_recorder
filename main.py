@@ -30,24 +30,20 @@ def process_files():
         if not excel_files:
             logger.info("No Excel files found for processing.")
             
+        # Create Trip instance (inherits LoadRecord and PickupDelivery functionality)
+        load_instance = LoadRecord(excel_files[0], excel_files[1])
+        pck_del_instance = PickupDelivery(excel_files[0], excel_files[1])
+        
 
-        # Process each file
-        try:
-            # Create Trip instance (inherits LoadRecord and PickupDelivery functionality)
-            load_instance = LoadRecord(excel_files[0], excel_files[1])
-            pck_del_instance = PickupDelivery(excel_files[0], excel_files[1])
-            
+        # Process LoadRecord, PickupDelivery, and Trip data
+        # load_instance.process_file()
+        # pck_del_instance.picup_dlvr_loader()
+        
+        trip_instance = Trip(excel_files[0], excel_files[1], SUPPORTIVE_FOLDER)
+        trip_instance.process_trip_records()
 
-            # Process LoadRecord, PickupDelivery, and Trip data
-            load_instance.process_file()
-            pck_del_instance.picup_dlvr_loader()
-            
-            trip_instance = Trip(file, SUPPORTIVE_FOLDER)
-            trip_instance.process_trip_records()
-
-            logger.info(f"File {excel_files} processed successfully")
-        except Exception as e:
-            logger.error(f"Error processing file {file}: {e}")
+        logger.info(f"File {excel_files} processed successfully")
+        
     except Exception as e:
         logger.error(f"Error in process_files: {e}")
         

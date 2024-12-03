@@ -149,69 +149,84 @@ class TripSetter(SalesforceAuthentication):
     def __init__(self, save_folder: str):
         super().__init__()
         self.save_folder = save_folder
-        self.file_path = None
 
-    def get_data_csv(self, result, num):            
-    # Check if records are available
-        if not result['records']:
-            logger.warning("No records found for the provided load numbers")
+    def get_data_csv(self, result) -> Optional[pd.DataFrame]:
+        """Сохраняет данные в CSV, если записи существуют."""
+        try:
+            if not result or 'records' not in result or not result['records']:
+                logger.warning("No records found for the provided query")
+                return None
+
+            # Сохранение данных в CSV
+            df = pd.DataFrame(result['records']).drop(columns='attributes', errors='ignore')
+            return df
+        except Exception as e:
+            logger.error(f"Error saving data to CSV: {str(e)}")
             return None
 
-        # Save data to CSV
-        df = pd.DataFrame(result['records']).drop(columns='attributes')
-        self.file_path = os.path.join(self.save_folder, f'salesforce_data{num}.csv')
-        df.to_csv(self.file_path, index=False)
-        logger.info(f"Data successfully saved to {self.file_path}")
+    def execute_batched_query(self, query_template: str, load_numbers: list, batch_size: int, file_suffix: str) -> str:
+        """Executes batched queries and saves the results in a CSV file."""
+        df = pd.DataFrame()  # Initialize an empty DataFrame
 
-        return self.file_path  # Return path of the saved file
+        for i in range(0, len(load_numbers), batch_size):
+            batch = load_numbers[i:i + batch_size]
+            load_numbers_str = ','.join([f"'{num}'" for num in batch])
+            query = query_template.format(load_numbers_str=load_numbers_str)
 
-    def making_trip_sql_request(self, load_numbers: List[str]) -> Optional[str]: # set_tripsql_request()
-        """Downloads a CSV file with Trip pickup and delivery ID if it exists."""
+            try:
+                result = self.sf_rest_session.query(query)
+                middle = self.get_data_csv(result)
+                if middle is not None:
+                    df = pd.concat([df, middle], ignore_index=True)  # Safely append results
+                else:
+                    logger.warning(f"No data for batch {i} to {i + batch_size - 1}")
+            except Exception as query_error:
+                logger.error(f"Query failed for batch {i} to {i + batch_size - 1}: {str(query_error)}")
+        
+        # Construct file path with suffix
+        file_name = f'{file_suffix}.csv'
+        file_path = os.path.join(self.save_folder, file_name)
+        df.to_csv(file_path, index=False)
+        logger.info(f"Data successfully saved to {file_path}")
+
+        return file_path
+
+    def making_trip_sql_request(self, load_numbers: List[str]) -> Optional[str]:
+        """Скачивает CSV с информацией о поездках."""
         try:
-            # Create the save folder if it doesn't exist
             os.makedirs(self.save_folder, exist_ok=True)
-            
-            # Ensure Salesforce session is initialized
             if not self.sf_rest_session:
                 raise Exception('Salesforce REST session not initialized')
 
-            # Prepare and execute Salesforce query
-            load_numbers_str = ','.join([f"'{num}'" for num in load_numbers])
-            query = f"""
+            query_template = """
                 SELECT Id, Load_Number__c, (SELECT Id, TYPE__c FROM Stop_Positions__r) 
                 FROM Load__c 
-                where Load_Number__c in ({load_numbers_str})
-                """
-            self.result = self.sf_rest_session.query(query)
-            return self.get_data_csv(self.result, 0)
+                WHERE Load_Number__c IN ({load_numbers_str})
+            """
+            return self.execute_batched_query(query_template, load_numbers, batch_size=200, file_suffix='stop_pos_id')
 
         except Exception as e:
-            logger.error(f"Error occurred during file download: {str(e)}")
+            logger.error(f"Error occurred during trip SQL request: {str(e)}")
             return None
-        
-    def making_driver_sql_request(self, load_numbers: List[str]) -> Optional[str]: # set_trucksql_request()
-        """Downloads a CSV file with Trip pickup and delivery ID if it exists."""
+
+    def making_driver_sql_request(self, load_numbers: List[str]) -> Optional[str]:
+        """Скачивает CSV с информацией о водителях."""
         try:
-            # Create the save folder if it doesn't exist
             os.makedirs(self.save_folder, exist_ok=True)
-            
-            # Ensure Salesforce session is initialized
             if not self.sf_rest_session:
                 raise Exception('Salesforce REST session not initialized')
 
-            # Prepare and execute Salesforce query
-            load_numbers_str = ','.join([f"'{num}'" for num in load_numbers])
-            query = f"""
+            query_template = """
                 SELECT Id, DRIVER_ID__c, FirstName, LastName, 
                 (SELECT Id, TYPE__c, END_DATE__c, UNIT__c FROM Vehicle_History__r WHERE END_DATE__c = null) 
-                FROM Account WHERE RecordType.DeveloperName = 'DriverAccount'
+                FROM Account 
+                WHERE RecordType.DeveloperName = 'DriverAccount'
                 AND DRIVER_ID__c IN ({load_numbers_str})
-                """
-            self.result = self.sf_rest_session.query(query)
-            return self.get_data_csv(self.result, 1)
+            """
+            return self.execute_batched_query(query_template, load_numbers, batch_size=200, file_suffix='driver_id')
 
         except Exception as e:
-            logger.error(f"Error occurred during file download: {str(e)}")
+            logger.error(f"Error occurred during driver SQL request: {str(e)}")
             return None
     
 
